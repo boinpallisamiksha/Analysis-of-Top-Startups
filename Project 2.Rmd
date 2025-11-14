@@ -1,0 +1,187 @@
+---
+title: "Which Startups are on the Rise?"
+subtitle: "Analysis of the Top 250 Startups"
+author: "By Samiksha Boinpalli"
+output: 
+  html_document: 
+    theme: flatly
+---
+```{r, echo = FALSE, message = FALSE}
+#loading packages and reading in dataset
+startups_data = read.csv("Startups Dataset - Sheet1.csv")
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+```
+# **1. Introduction:**
+The dataset used for this project was obtained from [**The Information**](https://www.theinformation.com/), which is a website that publishes interesting news and articles related to the technology and business worlds. In 2024, the Information published data on 250 of the most promising startups; 50 from each year from 2020 to 2024. This dataset is called [**The Information 50 Database**](https://www.theinformation.com/projects/the-information-50-database), and the companies within the dataset have been categorized into 8 different fields. 
+
+The reason that I chose this dataset is because of the growth in popularity and abundance of startups in recent years. I believe this trend reflects the increasing amount of competitiveness and innovation as more entrepreneurs seek to sell their products and ideas, which is truly exciting. Considering this, by analyzing this dataset, I hope to better understand and compare how industry sectors, time, and any other factors could play a role in a startup's success.
+
+![*What are startups or emerging companies and how do they work?* (2025). Iberdrola. https://www.iberdrola.com](/Users/sami/Desktop/SDS/Startups_746x419.jpg)
+
+```{r, echo = FALSE, warning = FALSE}
+#***cleaning the dataset***
+
+#making money raised at time of publication variable into numeric: 
+startups_data = mutate(startups_data, money.raised.at.time.of.publication = (parse_number(money.raised.at.time.of.publication)*1000000))
+
+#making money raised current variable into numeric: 
+startups_data = mutate(startups_data, money.raised.current = (parse_number(money.raised.current)*1000000))
+
+#making valuation at time of publication variable into numeric: 
+startups_data = mutate(startups_data, valuation.at.time.of.publication = (parse_number(valuation.at.time.of.publication)*1000000))
+
+#making revenue at time of publication into numeric: 
+my_vec = vector(length = length(startups_data$revenue.at.time.of.publication))
+for(i in 1:length(startups_data$revenue.at.time.of.publication)){
+  val = startups_data$revenue.at.time.of.publication[i]
+  
+  if(is.na(val)){
+    number = NA
+  } 
+  else if(str_detect(val, "(M|million)")){
+    number = parse_number(val) * 1000000
+  } 
+  else {
+    number = parse_number(val)
+  }
+  my_vec[i] = number
+}
+
+startups_data$revenue.at.time.of.publication = my_vec
+
+#making most recent valuation variable into numeric: 
+my_vector = vector(length = length(startups_data$most.recent.valuation.month.year))
+
+for(i in 1:length(startups_data$most.recent.valuation.month.year)){
+  val = startups_data$most.recent.valuation.month.year[i]
+  
+  if(is.na(val)){
+    number = NA
+  } 
+  else if(str_detect(val, "(M|million)")){
+    number = parse_number(val) * 1000000
+  } 
+  else if(str_detect(val, "B")){
+    number = parse_number(val) * 1000000000
+  } 
+  else {
+    number = parse_number(val)
+  }
+  my_vector[i] = number
+}
+
+startups_data$most.recent.valuation.month.year = my_vector
+
+#fixing Consumer and Creator Sector
+startups_data$sector[startups_data$sector == "Creator and Consumer"] = "Consumer and Creator"
+
+
+#fixing AI Sector
+startups_data$sector[startups_data$sector == "AI Applications"] = "Data & AI"
+
+
+#making new interest variables: 
+
+#new variable of interest: net money raised
+startups_data = mutate(startups_data, net.money.raised = money.raised.current - money.raised.at.time.of.publication) 
+
+#new variable of interest: valuation growth percentage
+startups_data = mutate(startups_data, valuation_growth_percentage = round(((most.recent.valuation.month.year - valuation.at.time.of.publication)/
+valuation.at.time.of.publication) * 100, 2))
+```
+
+
+# **2. Data Preparation:**
+In order to obtain my data from the website, I had to **manually scrape** it, past it into a spreadsheet, and then download as a CSV. One challenge that I faced was that the notation valuations varied. The first steps I took to process and clean my data was taking several of the character variables that represented monetary values and **converted them to numeric values**, so that it would be easier to analyze these numbers. Then, I created **two new variables of interest**. One was the Net Money Raised, which was calculated by subtracting the money raised at publication variable from the current money raised variable. The other variable was The Valuation Growth Percentage, which was found by subtracting the valuation at publication variable from the current valuation variable, then dividing that value by the valuation at the time of publication variable, and finally multiplying that value by a 100. One **challenge** faced was that the data often had inconsistent notations. For instance, numbers in the millions were denoted as both "M" and "millions". In addition, there was also values such as "B", "NA", "Unknown", and more. To handle these inconsistencies, I used conditional or statement for different representations of millions, if statements to differentiate between millions and billions, and assigned NA to any values that were not numeric. In general, for any **NA and unknown values**, I converted them all to NA, so that they wouldn't disrupt any calculations with numeric values. Lastly, there was a total of **250 observations, representing 250 different startups**; 50 from each year from 2020-2024.
+
+# **3. Variable Descriptions:**
+```{r, echo = FALSE}
+#making a subset of cleaned dataset with only variables needed
+startups_subset = select(startups_data, name.of.company, year.included, sector, revenue.at.time.of.publication, net.money.raised, valuation_growth_percentage)
+
+#Make a nicely formatted table that includes the name of each variable, its type, and a brief description. 
+variable_table = data.frame("Variable Name" = c("name.of.company", "year.included", "sector","revenue.at.time.of.publication", "net.money.raised", "valuation_growth_percentage"), "Type" = c("Categorical","Categorical","Categorical","Numeric", "Numeric","Numeric"), "Description" = c("The name of the startup.","The year that the startup was included on this list.","The industry sector that the startup belongs to.","The total revenue of the startup at time of publication", "The total net change in the money raised by the startup from publication time to current time.","The percentage growth in the startup from the publication time to current time."))
+
+my_table = kable(variable_table, col.names = c("Variable Name", "Type", "Description"), caption = "<b style='color:black;'>Information about the Variables Used for Analysis.</b>", format = "html")
+kable_styling(my_table, bootstrap_options = c("striped", "bordered"))
+```
+
+# **4. Univariate Analyses:**
+```{r, echo = FALSE}
+#1 Bar Chart: Distribution of Startup Sectors
+ggplot(startups_subset) + geom_bar(aes(x=sector, fill = sector)) + theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "none") + labs(x="Sector of the Startup", y="Frequency", title="#1 Bar Chart: Distribution of Startup Sectors")
+```
+
+As evident, the distribution of startup sectors varies greatly, with Data & AI and Asia dominating the startup market with both sectors having counts of `r sum(startups_subset$sector == "Data & AI")` startups in the top 250 startups. On the other hand, Devices & Robots is the least common sector in the Top 50 Startups with a minimum count of only `r sum(startups_subset$sector == "Devices & Robots")` startups.
+
+```{r, echo = FALSE, warning = FALSE}
+#2 Histogram: Distribution of Revenue at Time of Publication
+ggplot(startups_subset) + geom_histogram(aes(x=revenue.at.time.of.publication), bins = 5, fill = "pink") + labs(x="Revenue of the Startup at Time of Publication", y="Frequency", title = "#2 Histogram: Distribution of Revenue at Time of Publication") + scale_x_continuous(labels = scales::comma)
+```
+
+This histogram displays a right-skewed distribution of startup revenues at the time of publication, revealing that most of the startup's revenues at the time of publication were less than 50,000 on the lower end with very few outliers reaching huge revenues. The mean revenue is `r round(mean(startups_subset$revenue.at.time.of.publication, na.rm = TRUE)/1000000, 2)` million, with a standard deviation of `r round(sd(startups_subset$revenue.at.time.of.publication, na.rm = TRUE)/1000000, 2)` million, proving that most revenues are concentrated on the lower end, however, there is still considerable variability in startup revenues during time of publication.
+
+```{r, echo=FALSE, warning = FALSE}
+#3 Boxplot: Distribution of Startup's Valuation Growth Percentage
+ggplot(startups_subset) + geom_boxplot(aes(x=valuation_growth_percentage, y=""), fill = "lavender") + labs(x="Valuation Growth Percentage (%)", y="", title = "#3 Boxplot: Distribution of Startup's Valuation Growth Percentage")
+```
+
+As shown above, the boxplot represents a right-skewed distribution of the Valuation Growth Percentage of startups. Additionally, the median of the Valuation Growth Percentage is `r round(median(startups_subset$valuation_growth_percentage, na.rm = TRUE))` meaning that half of the startups saw negative growth and the other half saw positive growth. The mean valuation growth is `r round(mean(startups_subset$valuation_growth_percentage, na.rm = TRUE), 2)` which is higher than the median, showing that a few startups with very high valuation growth are pulling the average upward and average valuation growth for startups is increasing/doubling.
+
+```{r, echo=FALSE, warning = FALSE}
+#4 Histogram: Distribution of Net Money Raised by Startup
+ggplot(startups_subset) + geom_histogram(aes(x=net.money.raised), bins = 10, fill = "lightblue") + labs(x="Net Money Raised", y="Frequency", title = "#4 Histogram: Distribution of Net Money Raised by Startup") + scale_x_continuous(labels = scales::comma) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+This histogram displays a right-skewed distribution, of Net Money Raised by startups with a media net money raised of `r round(median(startups_subset$net.money.raised, na.rm = TRUE)/1000000, 2)` million. The greatest amount of net money raised was `r round(max(startups_subset$net.money.raised, na.rm = TRUE)/1000000, 2)` while the lowest was `r round(min(startups_subset$net.money.raised, na.rm = TRUE)/1000000, 2)` million. As we see the median to be closer to the minimum net money raised, it can be concluded that while most companies experience modest growth in funding, only a few experience huge increases in funding.
+
+# **5. Multivariate Analyses**
+
+```{r, echo=FALSE, warning = FALSE}
+#making a function that will generate scatterplot multivariate graphs
+graph_scat = function(x_given, y_given, x_label, y_label, number){
+  make_title = paste(number, "Scatterplot:", x_label, " vs. ", y_label, " for Startups")
+  print(ggplot(startups_subset) + geom_point(aes(x=.data[[x_given]], y=.data[[y_given]], color = year.included)) + labs(x=x_label, y=y_label, title = make_title)
+        
+)
+}
+
+#1. Scatterplot of the Revenue at Time of Publication vs. Valuation Growth Percentage by Year for Startups
+graph_scat("revenue.at.time.of.publication", "valuation_growth_percentage", "Revenue of the Startup at Time of Publication", "Valuation Growth Percentage", "#1. ")
+```
+
+```{r, echo=FALSE, warning = FALSE}
+graph_box = function(x_given, y_given, x_label, y_label, number){
+  make_title = paste(number, "Scatterplot:", x_label, " vs. ", y_label, " for Startups")
+  print(ggplot(startups_subset) + geom_boxplot(aes(x=factor(.data[[x_given]]), y=.data[[y_given]], fill = year.included)) + labs(x=x_label, y=y_label, title = make_title)
+)
+}
+#3. Boxplot: Year Included vs. Valuation Growth Percentages of Startups
+graph_box("year.included", "valuation_growth_percentage", "Year Startup was Included", "Valuation Growth Percentage (%)", "#3") 
+  
+  
+
+```
+
+```{r, echo=FALSE, warning = FALSE}
+graph_scat("net.money.raised", "valuation_growth_percentage", "Revenue of the Startup at Time of Publication", "Valuation Growth Percentage", "#3. ")
+```
+
+# **6. Reproducibility**
+To ensure reproducibility of this project, I took several measures. First, I did not set the working directory and loaded all my packages in the top of my code. Additionally, I also avoided using any paths to my files when including the images within the report, so instead I directly put in the link address for the images. Lastly, I made sure to add in comments that explain my code as well as separate chunks of code to improve readability. By doing all these things, I made sure that my project was reproducible and understandable for others.
+
+# **7. Choice Elements**
+The choice elements that I decided to use in this project are 5 or more in-line codes, creating two new variables of interest, formatting/parsing one string variable of interest, using a loop to process data, and lastly using an if statement to process data. First, I used **in-line codes** for all of my descriptive statistics when describing the graphs. Next, I **created two new variables of interest** when cleaning and processing my data and they are: "net.money.raised" and "valuation_growth_percentage".Then, I used a **loop** to process the most recent valuation variable, converting different notations (“M”, “B”, “million”) into numeric values. I also implemented **if statements** within that loop to handle NA values and differentiate between millions and billions. Lastly, I **formatted and parsed string variables of interest** by combining similar sectors, such as "Creator & Consumer" with "Consumer & Creator" and "AI Applications" with "Data & AI", and by extracting numeric values from monetary strings to create numeric variables for analysis. Except for in-line codes, all of the choice elements occured in the second chunk of code where I cleaned and processed the dataset.
+
+# **8. Conclusion**
+
+# **9. References**
+
+Corporate, Iberdrola. “Perseo: Iberdrola’s Startups Programme.” Iberdrola, 2025. [https://www.iberdrola.com/innovation/international-startup-program-perseo](https://www.iberdrola.com). 
+
+The Information. [https://www.theinformation.com/](https://www.theinformation.com/).
+
+The Information 50 database, 2024. [https://www.theinformation.com/projects/the-information-50-database](https://www.theinformation.com/projects/the-information-50-database). 
